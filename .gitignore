@@ -1,0 +1,15 @@
+# Environment variables
+.env
+
+# Private keys
+*.pem
+
+# Python venv
+venv/
+venv_new/
+
+# __pycache__
+__pycache__/
+
+# Logs
+*.log

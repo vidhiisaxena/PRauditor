@@ -5,7 +5,7 @@ app= FastAPI()
 
 @app.get("/")
 def home():
-    return {"status":"PR Auditor Backend RUnning"}
+    return {"status":"PR Auditor Backend Running"}
 
 @app.post("/github/webhook")
 async def github_webhook(request: Request):
