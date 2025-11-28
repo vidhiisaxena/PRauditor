@@ -1,26 +1,32 @@
 import hmac
 import hashlib
-from fastapi import HTTPException
+from typing import Optional
 
 from backend.config import GITHUB_WEBHOOK_SECRET
 
-def check_signature(signature: str | None, payload: bytes):
+
+def check_signature(signature: Optional[str], payload: bytes) -> bool:
+
+    # If secret not set, don't enforce validation (dev mode)
     if not GITHUB_WEBHOOK_SECRET:
-        return  # Skip if not configured
+        return True
 
     if not signature:
-        raise HTTPException(status_code=400, detail="Missing signature")
+        return False
 
-    try:
-        _, sent = signature.split("=")
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid signature header")
+    # Signature comes in format: sha256=abcdef...
+    if "=" not in signature:
+        return False
 
-    expected = hmac.new(
+    algo, sent_sig = signature.split("=", 1)
+
+    if algo != "sha256":
+        return False
+
+    expected_sig = hmac.new(
         GITHUB_WEBHOOK_SECRET.encode(),
         payload,
         hashlib.sha256
     ).hexdigest()
 
-    if not hmac.compare_digest(sent, expected):
-        raise HTTPException(status_code=401, detail="Invalid signature")
+    return hmac.compare_digest(sent_sig, expected_sig)
