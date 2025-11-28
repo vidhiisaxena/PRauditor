@@ -1,3 +1,0 @@
-from backend.config import GITHUB_PERSONAL_TOKEN
-from backend.github_client import fetch_diff
-from backend.github_webhook_utils import check_signature
