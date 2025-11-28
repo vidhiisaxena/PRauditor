@@ -2,15 +2,15 @@ import json
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.responses import JSONResponse
 
-from backend.github_client import fetch_diff
+from backend.github_client import fetch_pr_diff, post_pr_comment
 from backend.github_webhook_utils import check_signature
-from sqlalchemy.orm import Session
-#from backend.review_agent import generate_review           
+from sqlalchemy.orm import Session         
 from backend.database import get_db
-from . import models
+from backend import models
 from backend.schema import RepositoryOut, PullRequestOut, ReviewIssueOut
 
-
+from backend.review_pipeline import run_review
+from backend.markdown import issues_to_markdown
 
 app= FastAPI()
 
@@ -85,7 +85,6 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
         # post_comment(repo_full, pr_number, review_text)
 
     return JSONResponse({"ok": True})
-
 
 # ---------- API: repositories ----------
 
