@@ -2,7 +2,7 @@ import time
 import httpx
 import jwt
 
-from backend.config import GITHUB_APP_ID, GITHUB_PRIVATE_KEY
+from .config import GITHUB_APP_ID, GITHUB_PRIVATE_KEY
 
 
 def generate_jwt() -> str:

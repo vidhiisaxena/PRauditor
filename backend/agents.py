@@ -1,6 +1,6 @@
 import json
 from typing import List
-from .types import DiffChunk, Issue
+from .review_types import DiffChunk, Issue
 from .llm_client import chat
 
 

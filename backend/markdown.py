@@ -1,5 +1,5 @@
 from typing import List
-from backend.types import Issue
+from .review_types import Issue
 
 
 def issues_to_markdown(issues: List[Issue]) -> str:

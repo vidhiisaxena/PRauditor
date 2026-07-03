@@ -2,7 +2,7 @@ import jwt
 import time
 import httpx
 from pathlib import Path
-from backend.config import GITHUB_APP_ID, GITHUB_INSTALLATION_ID, GITHUB_PRIVATE_KEY
+from .config import GITHUB_APP_ID, GITHUB_INSTALLATION_ID, GITHUB_PRIVATE_KEY
 
 def generate_jwt():
     private_key = Path(GITHUB_PRIVATE_KEY).read_text()

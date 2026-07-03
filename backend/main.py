@@ -3,20 +3,20 @@ from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
-from backend.database import get_db
-from backend import models
-from backend.config import GITHUB_INSTALLATION_ID
+from .database import get_db
+from . import models
+from .config import GITHUB_INSTALLATION_ID
 
-from backend.github_webhook_utils import check_signature
-from backend.github_client import (
+from .github_webhook_utils import check_signature
+from .github_client import (
     fetch_pr_diff,
     post_pr_comment,
 )
 
-from backend.review_pipeline import run_review
-from backend.markdown import issues_to_markdown
+from .review_pipeline import run_review
+from .markdown import issues_to_markdown
 
-from backend.schema import RepositoryOut, PullRequestOut, ReviewIssueOut
+from .schema import RepositoryOut, PullRequestOut, ReviewIssueOut
 
 
 app = FastAPI()
@@ -24,7 +24,6 @@ app = FastAPI()
 
 @app.get("/")
 def home():
-    return {"status": "ok"}
     return {"status": "ok"}
 
 
@@ -178,14 +177,7 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/api/repos", response_model=list[RepositoryOut])
 def list_repositories(db: Session = Depends(get_db)):
-    # Only return repositories that have at least one pull request (have been reviewed)
-    return (
-        db.query(models.Repository)
-        .join(models.PullRequest)
-        .distinct()
-        .order_by(models.Repository.full_name)
-        .all()
-    )
+    return db.query(models.Repository).order_by(models.Repository.full_name).all()
 
 
 @app.get("/api/repos/{repo_id}/prs", response_model=list[PullRequestOut])
@@ -206,74 +198,3 @@ def list_review_issues(pr_id: int, db: Session = Depends(get_db)):
         .order_by(models.ReviewIssue.created_at.desc())
         .all()
     )
-
-
-@app.post("/api/prs/{pr_id}/trigger-review")
-def trigger_review(pr_id: int, db: Session = Depends(get_db)):
-    """
-    Manually trigger a review for an existing PR.
-    """
-    # Get the PR
-    pr = db.query(models.PullRequest).filter(models.PullRequest.id == pr_id).first()
-    if not pr:
-        raise HTTPException(404, f"Pull request {pr_id} not found")
-    
-    # Get the repository
-    repo = db.query(models.Repository).filter(models.Repository.id == pr.repo_id).first()
-    if not repo:
-        raise HTTPException(404, f"Repository for PR {pr_id} not found")
-    
-    # Get installation ID
-    installation_id = None
-    
-    # Try to get from config
-    if GITHUB_INSTALLATION_ID:
-        try:
-            installation_id = int(GITHUB_INSTALLATION_ID)
-        except (ValueError, TypeError):
-            pass
-    
-    if not installation_id:
-        raise HTTPException(400, "GITHUB_INSTALLATION_ID not configured")
-    
-    # Fetch the latest diff
-    try:
-        diff = fetch_pr_diff(repo.full_name, pr.pr_number, installation_id)
-    except ValueError as e:
-        raise HTTPException(500, f"Failed to fetch PR diff: {str(e)}")
-    except Exception as e:
-        raise HTTPException(500, f"Unexpected error fetching PR diff: {str(e)}")
-    
-    # Run AI review
-    issues = run_review(diff)
-    
-    # Update PR's last_reviewed_at
-    from datetime import datetime
-    pr.last_reviewed_at = datetime.utcnow()
-    
-    # Replace issues in DB
-    db.query(models.ReviewIssue).filter(models.ReviewIssue.pr_id == pr.id).delete()
-    for issue in issues:
-        row = models.ReviewIssue(
-            pr_id=pr.id,
-            file_path=issue.file_path,
-            line=issue.line,
-            kind=issue.kind,
-            severity=issue.severity,
-            message=issue.message,
-            suggestion=issue.suggestion,
-        )
-        db.add(row)
-    db.commit()
-    
-    # Post review comment
-    try:
-        markdown_comment = issues_to_markdown(issues)
-        post_pr_comment(repo.full_name, pr.pr_number, markdown_comment, installation_id)
-    except ValueError as e:
-        # Log but don't fail - review was completed
-        print(f"Warning: Failed to post PR comment: {str(e)}")
-    except Exception as e:
-        print(f"Warning: Unexpected error posting PR comment: {str(e)}")
-    
-    return JSONResponse({"reviewed": True, "issues": len(issues), "pr_id": pr_id})

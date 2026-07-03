@@ -1,7 +1,7 @@
 from typing import List
-from backend.types import Issue
-from backend.diff_parser import parse_unified_diff
-from backend.agents import (
+from .review_types import Issue
+from .diff_parser import parse_unified_diff
+from .agents import (
     logic_agent,
     readability_agent,
     performance_agent,

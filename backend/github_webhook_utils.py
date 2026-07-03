@@ -1,7 +1,7 @@
 import hmac
 import hashlib
 from typing import Optional
-from backend.config import GITHUB_WEBHOOK_SECRET
+from .config import GITHUB_WEBHOOK_SECRET
 
 
 def check_signature(signature: Optional[str], payload: bytes) -> bool:

@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from datetime import datetime
-from backend.database import Base
+from .database import Base
 
 
 class Repository(Base):
@@ -9,6 +9,7 @@ class Repository(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     full_name = Column(String, unique=True, index=True)  # owner/repo
+    installation_id = Column(Integer, nullable=True)  # GitHub App installation that owns this repo
 
     pull_requests = relationship("PullRequest", back_populates="repository")
 
