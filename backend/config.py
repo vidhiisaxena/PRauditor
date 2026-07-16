@@ -42,7 +42,7 @@ GPT_API_URL=os.getenv('GPT_API_URL')
 GPT_API_KEY=os.getenv('GPT_API_KEY')
 GPT_MODEL=os.getenv("GPT_MODEL","gpt-4o-mini")
 
-DATABASE_URL=os.getenv('DATABASE_URL')
+DATABASE_URL=os.getenv('DATABASE_URL') or f"sqlite:///{Path(BASE_DIR) / 'prauditor.db'}"
 HOST=os.getenv('HOST', '0.0.0.0')
 PORT=int(os.getenv('PORT', 8000))
 ENV=os.getenv('ENV', 'development')

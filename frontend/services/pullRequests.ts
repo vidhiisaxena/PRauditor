@@ -9,22 +9,22 @@ export interface RerunReviewResponse {
 }
 
 /**
- * Pull request service. `getPullRequests` is live; action endpoints are
+ * Pull request service. `gets` is live; action endpoints are
  * stubbed until the backend implements them (see roadmap Stage 3–5).
  */
-export const pullRequestsService = {
+export const sService = {
   /**
-   * GET /api/repos/{repoId}/prs  ->  PullRequest[]
+   * GET /api/repos/{repoId}/prs  ->  []
    * Implemented: exists on the backend today.
    */
-  getPullRequests(repoId: number): Promise<PullRequest[]> {
-    return apiClient.get<PullRequest[]>(`/api/repos/${repoId}/prs`);
-  },
+   getPullRequest(prId: number): Promise<PullRequest> {
+    return apiClient.get<PullRequest>(`/api/prs/${prId}`);
+  }
 
   // TODO(backend): No single-PR endpoint exists yet. The review page currently
   // derives PR metadata from its issues. Wire this up when available.
-  // Expected: GET /api/prs/{prId} -> PullRequest
-  getPullRequest(prId: number): Promise<PullRequest> {
+  // Expected: GET /api/prs/{prId} -> 
+  get(prId: number): Promise<> {
     throw new NotImplementedError(`GET /api/prs/${prId}`);
   },
 
@@ -41,7 +41,7 @@ export const pullRequestsService = {
    * TODO(backend): Merge the pull request.
    * Expected: POST /api/prs/{prId}/merge -> { merged: boolean }
    */
-  mergePullRequest(prId: number): Promise<{ merged: boolean }> {
+  merge(prId: number): Promise<{ merged: boolean }> {
     // return apiClient.post<{ merged: boolean }>(`/api/prs/${prId}/merge`);
     throw new NotImplementedError(`POST /api/prs/${prId}/merge`);
   },

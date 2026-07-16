@@ -1,10 +1,14 @@
+import sys
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api import dashboard
-from .api import repositories
-from .api import pull_requests
-from .api import webhook
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from backend.api import dashboard, pull_request, repo, webhook
+from backend.database import init_db
 
 app = FastAPI(title="PRAuditor API")
 
@@ -22,9 +26,11 @@ app.add_middleware(
 )
 
 app.include_router(dashboard.router)
-app.include_router(repositories.router)
-app.include_router(pull_requests.router)
+app.include_router(repo.router)
+app.include_router(pull_request.router)
 app.include_router(webhook.router)
+
+init_db()
 
 @app.get("/")
 def home():

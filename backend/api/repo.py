@@ -4,15 +4,16 @@ from sqlalchemy import func
 
 from ..database import get_db
 from .. import models
+from ..schema import RepositoryOut, PullRequestOut
 
 router = APIRouter(prefix="/api/repos", tags=["repositories"])
 
-@router.get("/repositories", response_model=list[models.Repository])
+@router.get("/repositories", response_model=list[RepositoryOut])
 def list_repositories(db: Session = Depends(get_db)):
     return db.query(models.Repository).order_by(models.Repository.full_name).all()
 
 
-@router.get("/{repo_id}/prs", response_model=list[models.PullRequest])
+@router.get("/{repo_id}/prs", response_model=list[PullRequestOut])
 def list_pull_requests(repo_id: int, db: Session = Depends(get_db)):
     return (
         db.query(models.PullRequest)

@@ -11,6 +11,7 @@ from backend.review_pipeline import run_review
 from ..database import get_db
 from .. import models
 from ..config import GITHUB_INSTALLATION_ID
+from ..schema import ReviewIssueOut
 
 from ..github_webhook_utils import check_signature
 from ..github_client import (
@@ -20,7 +21,7 @@ from ..github_client import (
 
 router=APIRouter(prefix="/api/prs", tags=["pull_requests"])
 
-@router.get("/{pr_id}/issues", response_model=list[models.ReviewIssue])
+@router.get("/{pr_id}/issues", response_model=list[ReviewIssueOut])
 def list_review_issues(pr_id: int, db: Session = Depends(get_db)):
     return (
         db.query(models.ReviewIssue)
