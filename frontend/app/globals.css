@@ -2,15 +2,93 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #0f172a;
-  --foreground: #f1f5f9;
+/*
+ * Design tokens. Light theme is the default; the `.dark` class flips them.
+ * Palette is intentionally neutral (zinc/slate) to read like a developer
+ * tool (GitHub / Vercel / Linear) rather than a flashy SaaS template.
+ */
+@layer base {
+  /*
+   * Brand palette (color-hex #10080): a green → black scheme.
+   *   #1fea00  bright accent green   -> dark-mode primary
+   *   #27a102  primary green         -> light-mode primary
+   *   #1c6000  deep green            -> hover / emphasis
+   *   #002f06  near-black green      -> dark surfaces
+   *   #000000  black                 -> dark background
+   * Green is the brand/accent; surfaces & text stay near-neutral (with a faint
+   * green tint) so the tool remains readable rather than neon.
+   */
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 7%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 7%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 7%;
+
+    --primary: 106 97% 30%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 120 22% 96%;
+    --secondary-foreground: 120 30% 12%;
+
+    --muted: 120 14% 96%;
+    --muted-foreground: 120 6% 40%;
+
+    --accent: 120 30% 93%;
+    --accent-foreground: 120 45% 14%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 120 12% 88%;
+    --input: 120 12% 88%;
+    --ring: 106 97% 30%;
+
+    --radius: 0.6rem;
+  }
+
+  .dark {
+    --background: 130 24% 4%;
+    --foreground: 90 10% 96%;
+
+    --card: 130 22% 6%;
+    --card-foreground: 90 10% 96%;
+
+    --popover: 130 24% 5%;
+    --popover-foreground: 90 10% 96%;
+
+    --primary: 112 84% 45%;
+    --primary-foreground: 130 60% 6%;
+
+    --secondary: 130 16% 12%;
+    --secondary-foreground: 90 10% 96%;
+
+    --muted: 130 14% 12%;
+    --muted-foreground: 120 8% 60%;
+
+    --accent: 130 18% 14%;
+    --accent-foreground: 90 10% 96%;
+
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 130 15% 14%;
+    --input: 130 15% 14%;
+    --ring: 112 84% 45%;
+  }
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
 }
 
 @layer utilities {
