@@ -5,6 +5,7 @@ sqlalchemy
 psycopg2-binary
 python-dotenv
 httpx
-pydantic
+python-jose[cryptography]
+PyJWT
+python-multipart
 alembic
-PyJWT[crypto]

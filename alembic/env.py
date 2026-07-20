@@ -1,3 +1,4 @@
+import os
 from logging.config import fileConfig
 from backend.database import Base
 from backend import models  # Ensure models are imported for Alembic's autogenerate feature
@@ -9,6 +10,13 @@ from alembic import context
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
+
+# Prefer the DATABASE_URL env var (e.g. Neon in production) over the value
+# hardcoded in alembic.ini, so migrations can target any database without
+# editing this file or committing credentials.
+_db_url = os.getenv("DATABASE_URL")
+if _db_url:
+    config.set_main_option("sqlalchemy.url", _db_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
