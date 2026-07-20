@@ -33,7 +33,7 @@ if _private_key:
             # This might be a base64-encoded key without headers - can't auto-fix
             pass
 
-GITHUB_PRIVATE_KEY = _private_key
+GITHUB_PRIVATE_KEY = os.getenv('GITHUB_PRIVATE_KEY', _private_key)
 GITHUB_INSTALLATION_ID=os.getenv('GITHUB_INSTALLATION_ID')
 GITHUB_WEBHOOK_SECRET=os.getenv('GITHUB_WEBHOOK_SECRET', "")
 GITHUB_PERSONAL_TOKEN=os.getenv('GITHUB_PERSONAL_TOKEN')
@@ -42,15 +42,10 @@ GPT_API_URL=os.getenv('GPT_API_URL')
 GPT_API_KEY=os.getenv('GPT_API_KEY')
 GPT_MODEL=os.getenv("GPT_MODEL","gpt-4o-mini")
 
-DATABASE_URL=os.getenv('DATABASE_URL') or f"sqlite:///{Path(BASE_DIR) / 'prauditor.db'}"
-# Render (and some other providers) hand out URLs with the legacy `postgres://`
-# scheme, which SQLAlchemy 1.4+ no longer recognises. Normalise to `postgresql://`.
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-
+DATABASE_URL=os.getenv('DATABASE_URL')
 HOST=os.getenv('HOST', '0.0.0.0')
 PORT=int(os.getenv('PORT', 8000))
-ENV=os.getenv('ENV', 'development')
+ENV=os.getenv('ENV', 'production')
 
 # Comma-separated list of allowed browser origins for CORS. Defaults to local dev.
 # In production set CORS_ORIGINS to your Vercel URL, e.g.
@@ -59,7 +54,7 @@ CORS_ORIGINS=[
     o.strip()
     for o in os.getenv(
         'CORS_ORIGINS',
-        'http://localhost:3000,http://127.0.0.1:3000',
+        'https://pr-auditor.vercel.app , https://prauditor-backend.onrender.com',
     ).split(',')
     if o.strip()
 ]
