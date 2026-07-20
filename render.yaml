@@ -15,9 +15,9 @@ services:
         fromDatabase:
           name: prauditor-db
           property: connectionString
-      # Set after the frontend is deployed (your Vercel URL, comma-separated).
+      # Browser origins allowed to call this API (comma-separated).
       - key: CORS_ORIGINS
-        sync: false
+        value: https://pr-auditor.vercel.app,http://localhost:3000
       # Secrets — fill these in the Render dashboard (not committed to git).
       - key: GPT_API_URL
         sync: false
