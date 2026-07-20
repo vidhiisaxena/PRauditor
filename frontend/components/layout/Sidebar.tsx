@@ -17,12 +17,12 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { label: "Dashboard", href: "/", icon: LayoutDashboard },
+  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Repositories", href: "/repos", icon: FolderGit2, matchPrefix: true },
 ];
 
 function isActive(pathname: string, item: NavItem): boolean {
-  if (item.href === "/") return pathname === "/";
+  if (item.href === "/dashboard") return pathname === "/dashboard";
   return item.matchPrefix
     ? pathname === item.href || pathname.startsWith(`${item.href}/`)
     : pathname === item.href;
