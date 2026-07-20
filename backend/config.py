@@ -43,6 +43,23 @@ GPT_API_KEY=os.getenv('GPT_API_KEY')
 GPT_MODEL=os.getenv("GPT_MODEL","gpt-4o-mini")
 
 DATABASE_URL=os.getenv('DATABASE_URL') or f"sqlite:///{Path(BASE_DIR) / 'prauditor.db'}"
+# Render (and some other providers) hand out URLs with the legacy `postgres://`
+# scheme, which SQLAlchemy 1.4+ no longer recognises. Normalise to `postgresql://`.
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
 HOST=os.getenv('HOST', '0.0.0.0')
 PORT=int(os.getenv('PORT', 8000))
 ENV=os.getenv('ENV', 'development')
+
+# Comma-separated list of allowed browser origins for CORS. Defaults to local dev.
+# In production set CORS_ORIGINS to your Vercel URL, e.g.
+#   CORS_ORIGINS=https://prauditor.vercel.app,https://www.yourdomain.com
+CORS_ORIGINS=[
+    o.strip()
+    for o in os.getenv(
+        'CORS_ORIGINS',
+        'http://localhost:3000,http://127.0.0.1:3000',
+    ).split(',')
+    if o.strip()
+]

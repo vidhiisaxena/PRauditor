@@ -1,0 +1,45 @@
+services:
+  - type: web
+    name: prauditor-api
+    runtime: python
+    plan: free
+    # Repo root is the build context so the `backend` package imports correctly.
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.4"
+      # Injected automatically from the managed Postgres below.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: prauditor-db
+          property: connectionString
+      # Set after the frontend is deployed (your Vercel URL, comma-separated).
+      - key: CORS_ORIGINS
+        sync: false
+      # Secrets — fill these in the Render dashboard (not committed to git).
+      - key: GPT_API_URL
+        sync: false
+      - key: GPT_API_KEY
+        sync: false
+      - key: GPT_MODEL
+        value: gpt-4o-mini
+      - key: GITHUB_APP_ID
+        sync: false
+      - key: GITHUB_PRIVATE_KEY
+        sync: false
+      - key: GITHUB_INSTALLATION_ID
+        sync: false
+      - key: GITHUB_WEBHOOK_SECRET
+        sync: false
+      - key: GITHUB_PERSONAL_TOKEN
+        sync: false
+      - key: ENV
+        value: production
+
+databases:
+  - name: prauditor-db
+    plan: free
+    databaseName: prauditor
+    user: prauditor
