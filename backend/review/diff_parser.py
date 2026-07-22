@@ -1,5 +1,6 @@
 from typing import List
-from .review_types import DiffChunk
+
+from backend.review.types import DiffChunk
 
 
 def parse_unified_diff(diff_text: str) -> List[DiffChunk]:

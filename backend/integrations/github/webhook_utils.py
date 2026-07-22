@@ -1,12 +1,13 @@
 import hmac
 import hashlib
 from typing import Optional
-from .config import GITHUB_WEBHOOK_SECRET
+
+from backend.core.config import GITHUB_WEBHOOK_SECRET
 
 
 def check_signature(signature: Optional[str], payload: bytes) -> bool:
     """
-    Validate GitHub webhook signature. Returns True if valid.
+    Validate a GitHub webhook signature. Returns True if valid.
     """
     if not GITHUB_WEBHOOK_SECRET:
         return True
@@ -21,7 +22,7 @@ def check_signature(signature: Optional[str], payload: bytes) -> bool:
     expected = hmac.new(
         GITHUB_WEBHOOK_SECRET.encode(),
         payload,
-        hashlib.sha256
+        hashlib.sha256,
     ).hexdigest()
 
     return hmac.compare_digest(sent_sig, expected)

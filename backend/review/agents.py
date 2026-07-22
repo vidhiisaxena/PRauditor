@@ -1,7 +1,8 @@
 import json
 from typing import List
-from .review_types import DiffChunk, Issue
-from .llm_client import chat
+
+from backend.review.types import DiffChunk, Issue
+from backend.integrations.llm.client import chat
 
 
 def _chunks_to_text(chunks: List[DiffChunk]) -> str:

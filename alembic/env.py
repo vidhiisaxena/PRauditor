@@ -1,6 +1,6 @@
 import os
 from logging.config import fileConfig
-from backend.database import Base
+from backend.core.database import Base
 from backend import models  # Ensure models are imported for Alembic's autogenerate feature
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool

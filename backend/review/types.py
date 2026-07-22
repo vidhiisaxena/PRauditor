@@ -1,11 +1,11 @@
 from dataclasses import dataclass
-from typing import Optional, List
+from typing import Optional
 
 
 @dataclass
 class DiffChunk:
     file_path: str
-    patch: str  
+    patch: str
 
 
 @dataclass

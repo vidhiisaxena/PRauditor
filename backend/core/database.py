@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
-from .config import DATABASE_URL
+
+from backend.core.config import DATABASE_URL
 
 # Creating SQLAlchemy engine
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
@@ -14,7 +15,8 @@ Base = declarative_base()
 
 
 def init_db():
-    from . import models  # noqa: F401
+    # Import models so they register on Base before create_all.
+    from backend import models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
 

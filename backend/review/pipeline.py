@@ -1,7 +1,8 @@
 from typing import List
-from .review_types import Issue
-from .diff_parser import parse_unified_diff
-from .agents import (
+
+from backend.review.types import Issue
+from backend.review.diff_parser import parse_unified_diff
+from backend.review.agents import (
     logic_agent,
     readability_agent,
     performance_agent,
@@ -17,9 +18,6 @@ def run_review(diff_text: str) -> List[Issue]:
 
     if not chunks:
         return []
-
-    # For very large diffs, you might want to truncate here.
-    # For now, use all chunks.
 
     issues: List[Issue] = []
     issues.extend(logic_agent(chunks))

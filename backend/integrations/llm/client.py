@@ -1,6 +1,7 @@
 import requests
 from typing import List, Dict
-from .config import GPT_API_URL, GPT_API_KEY, GPT_MODEL
+
+from backend.core.config import GPT_API_URL, GPT_API_KEY, GPT_MODEL
 
 
 def chat(messages: List[Dict], max_tokens: int = 600) -> str:
