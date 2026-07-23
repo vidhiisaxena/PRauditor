@@ -4,6 +4,7 @@ import Link from "next/link";
 import { GitPullRequest } from "lucide-react";
 
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
+import { UserMenu } from "@/components/auth/UserMenu";
 
 /**
  * Top bar. On mobile it carries the brand (sidebar is hidden); on desktop it
@@ -24,6 +25,7 @@ export function Topbar() {
       <div className="flex items-center gap-1.5">
         {/* TODO(notifications): bell + dropdown once the notifications feature lands. */}
         <ThemeToggle />
+        <UserMenu />
       </div>
     </header>
   );

@@ -1,10 +1,15 @@
+import { AuthGuard } from "@/components/auth/AuthGuard";
 import { AppShell } from "@/components/layout/AppShell";
 
-/** Layout for the app: renders the persistent shell around routed pages. */
+/** Layout for the authenticated app: guard the session, then render the shell. */
 export default function AppGroupLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return <AppShell>{children}</AppShell>;
+  return (
+    <AuthGuard>
+      <AppShell>{children}</AppShell>
+    </AuthGuard>
+  );
 }

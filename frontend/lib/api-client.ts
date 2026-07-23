@@ -44,6 +44,9 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       ...headers,
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
+    // Send the auth cookie on every request (cross-site: needs backend CORS
+    // allow_credentials + specific origins, both configured).
+    credentials: "include",
     // Always hit the backend for fresh data; caching is handled by TanStack Query.
     cache: "no-store",
   });

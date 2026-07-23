@@ -15,7 +15,7 @@ export const LINKS = {
   github: "https://github.com/vidhiisaxena/PRauditor",
   docs: "/docs",
   login: "/login",
-  getStarted: "/dashboard",
+  getStarted: "/login",
 };
 
 export const NAV_LINKS = [

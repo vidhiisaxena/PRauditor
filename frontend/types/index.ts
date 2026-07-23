@@ -59,6 +59,19 @@ export interface ReviewIssue {
 }
 
 // ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
+
+/** The signed-in user, as returned by GET /api/auth/me. */
+export interface AuthUser {
+  id: number;
+  username: string;
+  name: string | null;
+  email: string | null;
+  avatar_url: string | null;
+}
+
+// ---------------------------------------------------------------------------
 // Derived / view-model types (computed on the frontend)
 // ---------------------------------------------------------------------------
 

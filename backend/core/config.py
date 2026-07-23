@@ -41,9 +41,6 @@ HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", 8000))
 ENV = os.getenv("ENV", "production")
 
-# Comma-separated list of allowed browser origins for CORS. Defaults to local dev.
-# In production set CORS_ORIGINS to your Vercel URL, e.g.
-#   CORS_ORIGINS=https://pr-auditor.vercel.app,https://www.yourdomain.com
 CORS_ORIGINS = [
     o.strip()
     for o in os.getenv(
@@ -52,3 +49,28 @@ CORS_ORIGINS = [
     ).split(",")
     if o.strip()
 ]
+
+# --- GitHub OAuth (user login) ---------------------------------------------
+GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID")
+GITHUB_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET")
+# The backend callback URL registered on the GitHub App / OAuth App.
+GITHUB_OAUTH_CALLBACK_URL = os.getenv(
+    "GITHUB_OAUTH_CALLBACK_URL",
+    "http://localhost:8000/api/auth/github/callback",
+)
+GITHUB_OAUTH_SCOPE = os.getenv("GITHUB_OAUTH_SCOPE", "read:user user:email")
+
+# Where the user is sent after a successful login.
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+
+# --- Session JWT ------------------------------------------------------------
+JWT_SECRET = os.getenv("JWT_SECRET", "change-me-in-production")
+JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", 60 * 24 * 7))  # 7 days
+
+# --- Auth cookie ------------------------------------------------------------
+AUTH_COOKIE_NAME = "access_token"
+# Cross-site cookies (Vercel <-> Render) require SameSite=None + Secure in prod.
+# Locally (localhost:3000 <-> localhost:8000) Lax works and Secure must be off.
+COOKIE_SECURE = ENV == "production"
+COOKIE_SAMESITE = "none" if ENV == "production" else "lax"
