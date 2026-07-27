@@ -82,21 +82,39 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
     state = pr_info.get("state")
     head_sha = pr_info.get("head", {}).get("sha")
 
-    # Upsert repository (and remember which installation owns it, so manual
-    # reruns work later).
-    repo = (
-        db.query(models.Repository)
-        .filter(models.Repository.full_name == repo_full)
-        .first()
-    )
-    if not repo:
-        repo = models.Repository(full_name=repo_full, installation_id=installation_id)
+    # Upsert repository. Match on the immutable GitHub repo id first (rename-safe),
+    # falling back to full_name for rows created before we stored the id. Also
+    # remember which installation owns it, so manual reruns work later.
+    github_repo_id = data.get("repository", {}).get("id")
+
+    repo = None
+    if github_repo_id is not None:
+        repo = (
+            db.query(models.Repository)
+            .filter(models.Repository.github_id == github_repo_id)
+            .first()
+        )
+    if repo is None:
+        repo = (
+            db.query(models.Repository)
+            .filter(models.Repository.full_name == repo_full)
+            .first()
+        )
+
+    if repo is None:
+        repo = models.Repository(
+            full_name=repo_full,
+            installation_id=installation_id,
+            github_id=github_repo_id,
+        )
         db.add(repo)
-        db.commit()
-        db.refresh(repo)
-    elif repo.installation_id != installation_id:
+    else:
+        repo.full_name = repo_full  # keep name fresh if the repo was renamed
         repo.installation_id = installation_id
-        db.commit()
+        if github_repo_id is not None:
+            repo.github_id = github_repo_id
+    db.commit()
+    db.refresh(repo)
 
     # Upsert pull request
     pr = (

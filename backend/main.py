@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from backend.api import auth, dashboard, repos, pull_requests, webhook
+from backend.api import auth, dashboard, repos, pull_requests, webhook, installations
 from backend.core.config import CORS_ORIGINS
 from backend.core.database import init_db
 
@@ -26,6 +26,7 @@ app.include_router(dashboard.router)
 app.include_router(repos.router)
 app.include_router(pull_requests.router)
 app.include_router(webhook.router)
+app.include_router(installations.router)
 
 init_db()
 

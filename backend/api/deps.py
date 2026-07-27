@@ -24,4 +24,19 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
     return user
 
 
-__all__ = ["get_db", "get_current_user"]
+def get_current_user_optional(request: Request, db: Session = Depends(get_db)):
+    """Like get_current_user but returns None instead of raising.
+
+    Used by redirect endpoints (e.g. the GitHub App setup callback) that must
+    not 401 the browser mid-redirect.
+    """
+    token = request.cookies.get(AUTH_COOKIE_NAME)
+    if not token:
+        return None
+    payload = decode_access_token(token)
+    if not payload:
+        return None
+    return user_service.get_user_by_id(db, payload.get("user_id"))
+
+
+__all__ = ["get_db", "get_current_user", "get_current_user_optional"]
