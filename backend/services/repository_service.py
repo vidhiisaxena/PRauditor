@@ -5,7 +5,76 @@ from typing import List
 from sqlalchemy.orm import Session
 
 from backend import models
+from backend.integrations.github.client import fetch_repository_prs
 from backend.services import github_app
+
+
+def sync_repository_prs(db: Session, repository: models.Repository) -> List[models.PullRequest]:
+    """Upsert the PRs currently visible on GitHub for a repository into our DB."""
+    if repository.installation_id is None:
+        return []
+
+    try:
+        github_prs = fetch_repository_prs(repository.full_name, repository.installation_id)
+    except Exception:
+        return (
+            db.query(models.PullRequest)
+            .filter(models.PullRequest.repo_id == repository.id)
+            .order_by(models.PullRequest.pr_number.desc())
+            .all()
+        )
+
+    fetched_numbers: set[int] = set()
+    for gh_pr in github_prs:
+        pr_number = gh_pr.get("number")
+        if pr_number is None:
+            continue
+        fetched_numbers.add(pr_number)
+
+        state = gh_pr.get("state")
+        if gh_pr.get("merged_at") is not None and state == "closed":
+            state = "merged"
+
+        pr = (
+            db.query(models.PullRequest)
+            .filter(
+                models.PullRequest.repo_id == repository.id,
+                models.PullRequest.pr_number == pr_number,
+            )
+            .first()
+        )
+        if pr is None:
+            pr = models.PullRequest(
+                repo_id=repository.id,
+                pr_number=pr_number,
+                title=gh_pr.get("title"),
+                state=state,
+                head_sha=(gh_pr.get("head") or {}).get("sha"),
+            )
+            db.add(pr)
+        else:
+            pr.title = gh_pr.get("title")
+            pr.state = state
+            pr.head_sha = (gh_pr.get("head") or {}).get("sha")
+
+    # Keep historical rows for PRs no longer visible on GitHub but do not create
+    # duplicate records for newly discovered ones.
+    for pr in (
+        db.query(models.PullRequest)
+        .filter(models.PullRequest.repo_id == repository.id)
+        .all()
+    ):
+        if pr.pr_number not in fetched_numbers and pr.pr_number is not None:
+            pr.state = "closed" if pr.state != "merged" else "merged"
+
+    db.commit()
+
+    return (
+        db.query(models.PullRequest)
+        .filter(models.PullRequest.repo_id == repository.id)
+        .order_by(models.PullRequest.pr_number.desc())
+        .all()
+    )
 
 
 def sync_installation_repositories(

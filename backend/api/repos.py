@@ -5,6 +5,7 @@ from sqlalchemy import func
 from backend.api.deps import get_db
 from backend import models
 from backend.schemas import RepositoryOut, PullRequestOut
+from backend.services import repository_service
 
 router = APIRouter(prefix="/api/repos", tags=["repositories"])
 
@@ -16,6 +17,11 @@ def list_repositories(db: Session = Depends(get_db)):
 
 @router.get("/{repo_id}/prs", response_model=list[PullRequestOut])
 def list_pull_requests(repo_id: int, db: Session = Depends(get_db)):
+    repo = db.query(models.Repository).filter(models.Repository.id == repo_id).first()
+    if repo is None:
+        raise HTTPException(404, f"Repository with id {repo_id} not found")
+
+    repository_service.sync_repository_prs(db, repo)
     return (
         db.query(models.PullRequest)
         .filter(models.PullRequest.repo_id == repo_id)

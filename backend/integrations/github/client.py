@@ -31,3 +31,26 @@ def post_pr_comment(repo_full: str, pr_number: int, body: str, installation_id: 
     payload = {"body": body, "event": "COMMENT"}
     r = httpx.post(url, json=payload, headers=headers)
     r.raise_for_status()
+    
+def get_installation_repositories(installation_id):
+    token = get_installation_token(installation_id)
+    url = f"https://api.github.com/installation/repositories"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github+json",
+    }
+    r = httpx.get(url, headers=headers)
+    r.raise_for_status()
+    return r.json().get("repositories", [])
+
+def fetch_repository_prs(repo_full, installation_id):
+    token = get_installation_token(installation_id)
+    url = f"https://api.github.com/repos/{repo_full}/pulls"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github+json",
+    }
+    r = httpx.get(url, headers=headers)
+    r.raise_for_status()
+    return r.json()
+

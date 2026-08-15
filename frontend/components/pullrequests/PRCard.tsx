@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, GitPullRequest } from "lucide-react";
+import { ArrowRight, GitPullRequest, ExternalLink } from "lucide-react";
 
 import { formatRelativeTime } from "@/lib/format";
 import { Card } from "@/components/ui/card";
@@ -8,12 +8,20 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { RiskScore } from "@/components/common/RiskScore";
 import type { PullRequest } from "@/types";
 
+interface PRCardProps {
+  pr: PullRequest;
+  repoFullName?: string;
+}
+
 /**
  * Row-style card for a pull request within a repository.
  * Risk is a placeholder until the backend Risk Scoring agent exists.
  */
-export function PRCard({ pr }: { pr: PullRequest }) {
+export function PRCard({ pr, repoFullName }: PRCardProps) {
   const reviewed = pr.last_reviewed_at !== null;
+  const githubUrl = repoFullName
+    ? `https://github.com/${repoFullName}/pull/${pr.pr_number}`
+    : undefined;
 
   return (
     <Card className="flex flex-col gap-4 p-4 transition-colors hover:border-foreground/20 sm:flex-row sm:items-center sm:justify-between">
@@ -39,11 +47,18 @@ export function PRCard({ pr }: { pr: PullRequest }) {
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-6 sm:justify-end">
-        {/* TODO(backend): real risk from Risk Scoring agent. */}
+      <div className="flex items-center justify-between gap-2 sm:justify-end">
         <div className="w-28">
           <RiskScore score={null} level={reviewed ? "low" : null} />
         </div>
+        {githubUrl ? (
+          <Button asChild variant="outline" size="sm">
+            <a href={githubUrl} target="_blank" rel="noreferrer">
+              View PR
+              <ExternalLink className="h-4 w-4" />
+            </a>
+          </Button>
+        ) : null}
         <Button asChild variant="outline" size="sm" disabled={!reviewed}>
           {reviewed ? (
             <Link href={`/prs/${pr.id}`}>

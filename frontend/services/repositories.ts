@@ -3,6 +3,10 @@ import type { Repository } from "@/types";
 
 export const repositoriesService = {
   getRepositories(): Promise<Repository[]> {
+    return apiClient.get<Repository[]>("/api/installations/repositories");
+  },
+
+  getAllRepositories(): Promise<Repository[]> {
     return apiClient.get<Repository[]>("/api/repos/repositories");
   },
 };

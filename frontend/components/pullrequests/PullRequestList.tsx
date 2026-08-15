@@ -4,8 +4,16 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { PRCard } from "@/components/pullrequests/PRCard";
 import type { PullRequest } from "@/types";
 
+interface PullRequestListProps {
+  pullRequests: PullRequest[];
+  repoFullName?: string;
+}
+
 /** Vertical list of pull request cards. */
-export function PullRequestList({ pullRequests }: { pullRequests: PullRequest[] }) {
+export function PullRequestList({
+  pullRequests,
+  repoFullName,
+}: PullRequestListProps) {
   if (pullRequests.length === 0) {
     return (
       <EmptyState
@@ -19,7 +27,7 @@ export function PullRequestList({ pullRequests }: { pullRequests: PullRequest[] 
   return (
     <div className="space-y-3">
       {pullRequests.map((pr) => (
-        <PRCard key={pr.id} pr={pr} />
+        <PRCard key={pr.id} pr={pr} repoFullName={repoFullName} />
       ))}
     </div>
   );

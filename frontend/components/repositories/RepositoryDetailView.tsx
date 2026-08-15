@@ -33,8 +33,13 @@ export function RepositoryDetailView({ repoId }: RepositoryDetailViewProps) {
   const { data: repositories } = useRepositories();
   const repo = repositories?.find((r) => r.id === repoId);
 
-  const { data: prs, isPending, isError, error, refetch } =
-    usePullRequests(repoId);
+  const {
+    data: prs,
+    isPending,
+    isError,
+    error,
+    refetch,
+  } = usePullRequests(repoId);
   const [query, setQuery] = useState("");
 
   const filtered = useMemo(
@@ -74,7 +79,10 @@ export function RepositoryDetailView({ repoId }: RepositoryDetailViewProps) {
       ) : isPending ? (
         <ListSkeleton count={5} />
       ) : (
-        <PullRequestList pullRequests={filtered} />
+        <PullRequestList
+          pullRequests={filtered}
+          repoFullName={repo?.full_name}
+        />
       )}
     </div>
   );

@@ -45,7 +45,7 @@ CORS_ORIGINS = [
     o.strip()
     for o in os.getenv(
         "CORS_ORIGINS",
-        "https://pr-auditor.vercel.app , https://prauditor-backend.onrender.com",
+        "https://pr-auditor.vercel.app, https://prauditor-backend.onrender.com, http://127.0.0.1:8000, http://localhost:8000, http://localhost:3000",
     ).split(",")
     if o.strip()
 ]
