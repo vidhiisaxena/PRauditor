@@ -27,7 +27,7 @@ if _private_key and "\\n" in _private_key:
 if _private_key:
     _private_key = _private_key.strip()
 
-GITHUB_PRIVATE_KEY = os.getenv("GITHUB_PRIVATE_KEY", _private_key)
+GITHUB_PRIVATE_KEY =  _private_key
 GITHUB_INSTALLATION_ID = os.getenv("GITHUB_INSTALLATION_ID")
 GITHUB_WEBHOOK_SECRET = os.getenv("GITHUB_WEBHOOK_SECRET", "")
 GITHUB_PERSONAL_TOKEN = os.getenv("GITHUB_PERSONAL_TOKEN")
