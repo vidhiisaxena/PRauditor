@@ -1,10 +1,11 @@
 import time
-
+import logging
 import httpx
 import jwt
 
 from backend.core.config import GITHUB_APP_ID, GITHUB_PRIVATE_KEY
 
+logger=logging.getLogger(__name__)
 
 def generate_jwt() -> str:
     """
@@ -35,51 +36,63 @@ def generate_jwt() -> str:
 
 
 def get_installation_token(installation_id: int) -> str:
-    """
+    '''
     Exchange the app JWT for an installation access token.
-    """
+    '''
+    logger.info(
+        "Fetching GitHub installation token: installation_id=%s",
+        installation_id,
+    )
+
     try:
         jwt_token = generate_jwt()
+        logger.info("GitHub App JWT generated successfully")
     except Exception as e:
-        raise ValueError(f"Failed to generate JWT token: {str(e)}") from e
+        logger.exception("Failed to generate GitHub App JWT")
+        raise ValueError(f"Failed to generate JWT token: {e}") from e
 
-    url = f"https://api.github.com/app/installations/{installation_id}/access_tokens"
+    url = (
+        f"https://api.github.com/app/installations/"
+        f"{installation_id}/access_tokens"
+    )
+
     headers = {
         "Authorization": f"Bearer {jwt_token}",
         "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
     }
 
     try:
-        r = httpx.post(url, headers=headers)
+        r = httpx.post(url, headers=headers, timeout=15)
     except Exception as e:
-        raise ValueError(f"Failed to connect to GitHub API: {str(e)}") from e
+        logger.exception("GitHub API connection failed")
+        raise ValueError(f"Failed to connect to GitHub API: {e}") from e
 
-    if r.status_code == 401:
-        try:
-            error_detail = r.json()
-        except Exception:
-            error_detail = r.text
-        raise ValueError(
-            "GitHub API authentication failed (401 Unauthorized).\n"
-            f"Installation ID: {installation_id}\n"
-            f"App ID: {GITHUB_APP_ID}\n"
-            f"Private Key loaded: {'Yes' if GITHUB_PRIVATE_KEY else 'No'}\n"
-            f"GitHub API Response: {error_detail}\n"
-            "Verify GITHUB_APP_ID, GITHUB_PRIVATE_KEY, and that the installation "
-            "belongs to this app."
+    logger.info(
+        "GitHub installation token response: status=%s installation_id=%s",
+        r.status_code,
+        installation_id,
+    )
+
+    if r.status_code >= 400:
+        logger.error(
+            "GitHub installation token failed: status=%s body=%s",
+            r.status_code,
+            r.text,
         )
 
-    try:
-        r.raise_for_status()
-    except httpx.HTTPStatusError as e:
-        raise ValueError(f"GitHub API error ({r.status_code}): {r.text}") from e
+    r.raise_for_status()
 
-    try:
-        response_data = r.json()
-    except Exception as e:
-        raise ValueError(f"Failed to parse GitHub API response: {str(e)}") from e
+    response_data = r.json()
 
     if "token" not in response_data:
-        raise ValueError(f"GitHub API did not return a token. Response: {response_data}")
+        raise ValueError(
+            f"GitHub API did not return a token. Response: {response_data}"
+        )
+
+    logger.info(
+        "Successfully obtained installation token for installation_id=%s",
+        installation_id,
+    )
 
     return response_data["token"]

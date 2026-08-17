@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from starlette.background import BackgroundTask
+import logging
+import fastapi
 
 from backend.api.deps import get_current_user, get_current_user_optional, get_db
 from backend.core.config import FRONTEND_URL
@@ -10,10 +12,11 @@ from backend.schemas.installation import InstallationStatusOut, RepositorySummar
 from backend.services import github_app, installation_service, repository_service
 
 router = APIRouter(prefix="/api", tags=["installations"])
+logger=logging.getLogger(__name__)
 
 
 def _sync_installation_in_background(github_installation_id: int) -> None:
-    """Runs after the setup redirect is sent, in its own DB session."""
+    # Runs after the setup redirect is sent, in its own DB session.
     db = SessionLocal()
     try:
         inst = installation_service.get_by_github_id(db, github_installation_id)
@@ -29,7 +32,7 @@ def _sync_installation_in_background(github_installation_id: int) -> None:
 def installation_status(
     current_user=Depends(get_current_user), db: Session = Depends(get_db)
 ):
-    """Whether the signed-in user has installed PRAuditor. DB-only, no GitHub call."""
+    # Whether the signed-in user has installed PRAuditor. DB-only, no GitHub call.
     installs = installation_service.get_user_installations(db, current_user.id)
     return {"installed": len(installs) > 0, "installations": installs}
 
@@ -38,7 +41,6 @@ def installation_status(
 def list_repositories(
     current_user=Depends(get_current_user), db: Session = Depends(get_db)
 ):
-    """Active repositories for the user's installation(s). No PR required."""
     return repository_service.get_user_repositories(db, current_user.id)
 
 
@@ -46,7 +48,7 @@ def list_repositories(
 def sync_repositories(
     current_user=Depends(get_current_user), db: Session = Depends(get_db)
 ):
-    """Manually re-sync repositories for the user's installation(s)."""
+    #Manually re-sync repositories for the user's installation(s).
     installs = installation_service.get_user_installations(db, current_user.id)
     if not installs:
         raise HTTPException(404, "No installation found for this user")
@@ -63,11 +65,11 @@ def disconnect_installation(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """
+    '''
     Disconnect an installation the user owns: deactivate its repositories and
     remove our installation record. (The GitHub-side uninstall is separate;
     this removes PRAuditor's link to it.)
-    """
+    '''
     removed = installation_service.delete_installation(
         db, user_id=current_user.id, github_installation_id=github_installation_id
     )
@@ -84,11 +86,11 @@ def github_app_setup(
     current_user=Depends(get_current_user_optional),
     db: Session = Depends(get_db),
 ):
-    """
+    '''
     GitHub's App "Setup URL" callback. GitHub redirects here after install with
     ?installation_id=. We validate it, link it to the logged-in user, do an
     initial repo sync, then redirect back to the dashboard.
-    """
+    '''
     if current_user is None:
         # Not logged in in this browser — send them to log in first.
         return RedirectResponse(f"{FRONTEND_URL}/login", status_code=302)
@@ -98,12 +100,30 @@ def github_app_setup(
             f"{FRONTEND_URL}/dashboard?installed=error", status_code=302
         )
 
-    # Validate the installation against GitHub and read its account.
     try:
+        logger.info(
+        "GitHub App setup started: installation_id=%s user_id=%s",
+        installation_id,
+        current_user.id,
+        )
+
         gh_inst = github_app.get_installation(installation_id)
-    except Exception:
+
+        logger.info(
+            "GitHub App installation validated: installation_id=%s account=%s",
+            installation_id,
+            gh_inst.get("account", {}).get("login"),
+        )
+        
+    except Exception as e:
+        logger.exception(
+        "GitHub App installation validation FAILED: installation_id=%s user_id=%s",
+        installation_id,
+        current_user.id,
+        )
         return RedirectResponse(
-            f"{FRONTEND_URL}/dashboard?installed=error", status_code=302
+            f"{FRONTEND_URL}/dashboard?installed=error",
+            status_code=302
         )
 
     account = gh_inst.get("account") or {}
