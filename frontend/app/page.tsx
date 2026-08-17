@@ -16,9 +16,7 @@ export default function LandingPage() {
         <Hero />
         <HowItWorks />
         <Features />
-        {/* <ArchitectureDiagram /> */}
         <InteractiveDemo />
-        {/* <OpenSource /> */}
         <CTA />
       </main>
       <LandingFooter />

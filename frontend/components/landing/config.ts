@@ -22,7 +22,7 @@ export const NAV_LINKS = [
   { label: "Features", href: "#features" },
   { label: "How It Works", href: "#how-it-works" },
   // { label: "Open Source", href: "#open-source" }, // hidden for now
-  { label: "Docs", href: LINKS.docs },
+  { label: "Docs", href: "/docs" },
 ];
 
 export interface Feature {

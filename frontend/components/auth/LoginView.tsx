@@ -9,8 +9,6 @@ import { authService } from "@/services/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-/** Sign-in screen. "Continue with GitHub" navigates to the backend, which
- * redirects to GitHub's consent screen. */
 export function LoginView() {
   const { loading, authenticated } = useAuth();
   const router = useRouter();
@@ -37,14 +35,13 @@ export function LoginView() {
         <Card>
           <CardContent className="p-6">
             <Button asChild className="w-full" size="lg">
-              {/* Full-page navigation (not fetch) — OAuth must be a top-level redirect. */}
               <a href={authService.loginUrl()}>
                 <Github className="h-4 w-4" />
                 Continue with GitHub
               </a>
             </Button>
             <p className="mt-4 text-center text-xs text-muted-foreground">
-              You&apos;ll authorize PRAuditor on GitHub and be redirected back.
+              You'll authorize PRAuditor on GitHub and be redirected back.
             </p>
           </CardContent>
         </Card>
