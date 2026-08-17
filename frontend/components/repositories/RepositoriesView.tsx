@@ -80,7 +80,7 @@ export function RepositoriesView() {
           action={
             <Button variant="outline" asChild>
               <a
-                href="https://github.com/settings/installations"
+                href="https://github.com/apps/prauditor"
                 target="_blank"
                 rel="noreferrer"
               >
