@@ -9,76 +9,84 @@ from backend.integrations.github.client import fetch_repository_prs
 from backend.services import github_app
 
 
-def sync_repository_prs(db: Session, repository: models.Repository) -> List[models.PullRequest]:
+def sync_repository_prs(repo_id: int, repo_full_name: str, repo_installation_id: int) -> List[models.PullRequest]:
     """Upsert the PRs currently visible on GitHub for a repository into our DB."""
-    if repository.installation_id is None:
+    if repo_installation_id is None:
         return []
 
     try:
-        github_prs = fetch_repository_prs(repository.full_name, repository.installation_id)
+        github_prs = fetch_repository_prs(repo_full_name, repo_installation_id)
     except Exception:
-        return (
-            db.query(models.PullRequest)
-            .filter(models.PullRequest.repo_id == repository.id)
-            .order_by(models.PullRequest.pr_number.desc())
-            .all()
-        )
+        with SessionLocal() as db:
+            return (
+                db.query(models.PullRequest)
+                .filter(models.PullRequest.repo_id == repo_id)
+                .order_by(models.PullRequest.pr_number.desc())
+                .all()
+            )
 
     fetched_numbers: set[int] = set()
-    for gh_pr in github_prs:
-        pr_number = gh_pr.get("number")
-        if pr_number is None:
-            continue
-        fetched_numbers.add(pr_number)
+    with SessionLocal() as db:
+        try:
+            for gh_pr in github_prs:
+                pr_number = gh_pr.get("number")
+                if pr_number is None:
+                    continue
+                fetched_numbers.add(pr_number)
 
-        state = gh_pr.get("state")
-        if gh_pr.get("merged_at") is not None and state == "closed":
-            state = "merged"
+                state = gh_pr.get("state")
+                if gh_pr.get("merged_at") is not None and state == "closed":
+                    state = "merged"
 
-        pr = (
-            db.query(models.PullRequest)
-            .filter(
-                models.PullRequest.repo_id == repository.id,
-                models.PullRequest.pr_number == pr_number,
+                pr = (
+                    db.query(models.PullRequest)
+                    .filter(
+                        models.PullRequest.repo_id == repo_id,
+                        models.PullRequest.pr_number == pr_number,
+                    )
+                    .first()
+                )
+                if pr is None:
+                    pr = models.PullRequest(
+                        repo_id=repo_id,
+                        pr_number=pr_number,
+                        title=gh_pr.get("title"),
+                        state=state,
+                        head_sha=(gh_pr.get("head") or {}).get("sha"),
+                    )
+                    db.add(pr)
+                else:
+                    pr.title = gh_pr.get("title")
+                    pr.state = state
+                    pr.head_sha = (gh_pr.get("head") or {}).get("sha")
+
+            # Keep historical rows for PRs no longer visible on GitHub but do not create
+            # duplicate records for newly discovered ones.
+            for pr in (
+                db.query(models.PullRequest)
+                .filter(models.PullRequest.repo_id == repo_id)
+                .all()
+            ):
+                if pr.pr_number not in fetched_numbers and pr.pr_number is not None:
+                    pr.state = "closed" if pr.state != "merged" else "merged"
+
+            db.commit()
+
+            return (
+                db.query(models.PullRequest)
+                .filter(models.PullRequest.repo_id == repo_id)
+                .order_by(models.PullRequest.pr_number.desc())
+                .all()
             )
-            .first()
-        )
-        if pr is None:
-            pr = models.PullRequest(
-                repo_id=repository.id,
-                pr_number=pr_number,
-                title=gh_pr.get("title"),
-                state=state,
-                head_sha=(gh_pr.get("head") or {}).get("sha"),
-            )
-            db.add(pr)
-        else:
-            pr.title = gh_pr.get("title")
-            pr.state = state
-            pr.head_sha = (gh_pr.get("head") or {}).get("sha")
+        except Exception:
+            db.rollback()
+            raise
 
-    # Keep historical rows for PRs no longer visible on GitHub but do not create
-    # duplicate records for newly discovered ones.
-    for pr in (
-        db.query(models.PullRequest)
-        .filter(models.PullRequest.repo_id == repository.id)
-        .all()
-    ):
-        if pr.pr_number not in fetched_numbers and pr.pr_number is not None:
-            pr.state = "closed" if pr.state != "merged" else "merged"
 
-    db.commit()
-
-    return (
-        db.query(models.PullRequest)
-        .filter(models.PullRequest.repo_id == repository.id)
-        .order_by(models.PullRequest.pr_number.desc())
-        .all()
-    )
-
+from backend.core.database import SessionLocal
 
 def sync_installation_repositories(
-    db: Session, installation: "models.Installation"
+    github_installation_id: int
 ) -> List[models.Repository]:
     """
     Sync the repositories accessible to one installation into our database.
@@ -88,48 +96,48 @@ def sync_installation_repositories(
     Deactivates repos previously under this installation that are no longer
     accessible (they are kept, not deleted, so review history survives).
     """
-    github_installation_id = installation.github_installation_id
     gh_repos = github_app.list_installation_repositories(github_installation_id)
 
     fetched_full_names: set[str] = set()
-    try:
-        for gh in gh_repos:
-            full_name = gh.get("full_name")
-            if not full_name:
-                continue
-            fetched_full_names.add(full_name)
+    with SessionLocal() as db:
+        try:
+            for gh in gh_repos:
+                full_name = gh.get("full_name")
+                if not full_name:
+                    continue
+                fetched_full_names.add(full_name)
 
-            repo = (
+                repo = (
+                    db.query(models.Repository)
+                    .filter(models.Repository.full_name == full_name)
+                    .first()
+                )
+                if repo is None:
+                    repo = models.Repository(full_name=full_name)
+                    db.add(repo)
+
+                repo.github_id = gh.get("id")
+                repo.private = bool(gh.get("private", False))
+                repo.installation_id = github_installation_id
+                repo.active = True
+
+            # Deactivate repos previously synced under this installation that are
+            # no longer returned by GitHub.
+            previously_synced = (
                 db.query(models.Repository)
-                .filter(models.Repository.full_name == full_name)
-                .first()
+                .filter(models.Repository.installation_id == github_installation_id)
+                .all()
             )
-            if repo is None:
-                repo = models.Repository(full_name=full_name)
-                db.add(repo)
+            for repo in previously_synced:
+                if repo.full_name not in fetched_full_names:
+                    repo.active = False
 
-            repo.github_id = gh.get("id")
-            repo.private = bool(gh.get("private", False))
-            repo.installation_id = github_installation_id
-            repo.active = True
-
-        # Deactivate repos previously synced under this installation that are
-        # no longer returned by GitHub.
-        previously_synced = (
-            db.query(models.Repository)
-            .filter(models.Repository.installation_id == github_installation_id)
-            .all()
-        )
-        for repo in previously_synced:
-            if repo.full_name not in fetched_full_names:
-                repo.active = False
-
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
-
-    return get_installation_repositories(db, github_installation_id)
+            db.commit()
+            
+            return get_installation_repositories(db, github_installation_id)
+        except Exception:
+            db.rollback()
+            raise
 
 
 def get_installation_repositories(

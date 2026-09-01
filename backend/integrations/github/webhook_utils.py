@@ -10,7 +10,10 @@ def check_signature(signature: Optional[str], payload: bytes) -> bool:
     Validate a GitHub webhook signature. Returns True if valid.
     """
     if not GITHUB_WEBHOOK_SECRET:
-        return True
+        from backend.core.config import ENV
+        if ENV != "production":
+            return True
+        return False
 
     if not signature or "=" not in signature:
         return False

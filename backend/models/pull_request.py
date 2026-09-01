@@ -17,3 +17,4 @@ class PullRequest(Base):
 
     repository = relationship("Repository", back_populates="pull_requests")
     issues = relationship("ReviewIssue", back_populates="pull_request")
+    review_jobs = relationship("ReviewJob", back_populates="pull_request")

@@ -1,3 +1,4 @@
+# pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -21,7 +22,7 @@ def list_pull_requests(repo_id: int, db: Session = Depends(get_db)):
     if repo is None:
         raise HTTPException(404, f"Repository with id {repo_id} not found")
 
-    repository_service.sync_repository_prs(db, repo)
+    repository_service.sync_repository_prs(repo.id, repo.full_name, repo.installation_id)
     return (
         db.query(models.PullRequest)
         .filter(models.PullRequest.repo_id == repo_id)

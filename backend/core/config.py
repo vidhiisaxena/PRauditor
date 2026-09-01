@@ -37,6 +37,16 @@ GPT_API_KEY = os.getenv("GPT_API_KEY")
 GPT_MODEL = os.getenv("GPT_MODEL", "gpt-4o-mini")
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+DB_POOL_SIZE = int(os.getenv("DB_POOL_SIZE", 5))
+DB_MAX_OVERFLOW = int(os.getenv("DB_MAX_OVERFLOW", 10))
+DB_POOL_TIMEOUT = int(os.getenv("DB_POOL_TIMEOUT", 30))
+DB_POOL_RECYCLE = int(os.getenv("DB_POOL_RECYCLE", 1800))
+
+# --- Job Queue --------------------------------------------------------------
+JOB_MAX_ATTEMPTS = int(os.getenv("JOB_MAX_ATTEMPTS", 3))
+JOB_STALE_TIMEOUT_MINUTES = int(os.getenv("JOB_STALE_TIMEOUT_MINUTES", 10))
+JOB_BASE_RETRY_DELAY_SECONDS = int(os.getenv("JOB_BASE_RETRY_DELAY_SECONDS", 60))
+
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", 8000))
 ENV = os.getenv("ENV", "production")

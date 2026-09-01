@@ -16,16 +16,11 @@ logger=logging.getLogger(__name__)
 
 
 def _sync_installation_in_background(github_installation_id: int) -> None:
-    # Runs after the setup redirect is sent, in its own DB session.
-    db = SessionLocal()
+    # Runs after the setup redirect is sent.
     try:
-        inst = installation_service.get_by_github_id(db, github_installation_id)
-        if inst is not None:
-            repository_service.sync_installation_repositories(db, inst)
+        repository_service.sync_installation_repositories(github_installation_id)
     except Exception:
         pass  # best-effort; user can hit POST /api/installations/sync
-    finally:
-        db.close()
 
 
 @router.get("/installations", response_model=InstallationStatusOut)
@@ -55,7 +50,7 @@ def sync_repositories(
 
     total = 0
     for inst in installs:
-        total += len(repository_service.sync_installation_repositories(db, inst))
+        total += len(repository_service.sync_installation_repositories(inst.github_installation_id))
     return {"synced": True, "repositories": total}
 
 

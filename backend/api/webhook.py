@@ -6,10 +6,10 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from backend.api.deps import get_db
+from backend.core.database import SessionLocal
 from backend import models
 from backend.integrations.github.webhook_utils import check_signature
-from backend.services.review_service import run_and_store_review
-from backend.services import installation_service, repository_service
+from backend.services import installation_service, repository_service, job_service
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ router = APIRouter(prefix="", tags=["webhook"])
 
 
 @router.post("/github/webhook")
-async def webhook(request: Request, db: Session = Depends(get_db)):
+async def webhook(request: Request):
     delivery_id = request.headers.get("X-GitHub-Delivery", "unknown")
     logger.info(f"[Webhook {delivery_id}] Received GitHub webhook")
     
@@ -56,17 +56,17 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
 
     # Handle installation lifecycle events
     if event == "installation":
-        return await handle_installation_event(db, delivery_id, data, action)
+        return await handle_installation_event(delivery_id, data, action)
 
     # Handle pull request events
     if event == "pull_request":
-        return await handle_pull_request_event(db, delivery_id, data, action)
+        return await handle_pull_request_event(delivery_id, data, action)
 
     logger.info(f"[Webhook {delivery_id}] Ignoring event type: {event}")
     return {"ignored": True}
 
 
-async def handle_installation_event(db: Session, delivery_id: str, data: dict, action: str):
+async def handle_installation_event(delivery_id: str, data: dict, action: str):
     """
     Handle GitHub App installation lifecycle events:
     - installation.created
@@ -94,192 +94,187 @@ async def handle_installation_event(db: Session, delivery_id: str, data: dict, a
     )
 
     if action == "created":
-        try:
-            inst = installation_service.upsert_installation(
-                db,
-                github_installation_id=github_installation_id,
-                user_id=None,  # We don't have user info from the webhook
-                account_login=account_login,
-                account_type=account_type,
-                target_type=target_type,
-            )
-            logger.info(f"[Webhook {delivery_id}] Installation persisted: {github_installation_id}")
-            
-            # Sync repositories for this installation
+        with SessionLocal() as db:
             try:
-                synced_repos = repository_service.sync_installation_repositories(db, inst)
-                logger.info(
-                    f"[Webhook {delivery_id}] Installation {github_installation_id} synced "
-                    f"{len(synced_repos)} repositories"
+                inst = installation_service.upsert_installation(
+                    db,
+                    github_installation_id=github_installation_id,
+                    user_id=None,  # We don't have user info from the webhook
+                    account_login=account_login,
+                    account_type=account_type,
+                    target_type=target_type,
                 )
+                logger.info(f"[Webhook {delivery_id}] Installation persisted: {github_installation_id}")
+                
+                # Sync repositories for this installation
+                try:
+                    synced_repos = repository_service.sync_installation_repositories(inst.github_installation_id)
+                    logger.info(
+                        f"[Webhook {delivery_id}] Installation {github_installation_id} synced "
+                        f"{len(synced_repos)} repositories"
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"[Webhook {delivery_id}] Failed to sync repositories for installation "
+                        f"{github_installation_id}: {e}"
+                    )
             except Exception as e:
+                db.rollback()
                 logger.error(
-                    f"[Webhook {delivery_id}] Failed to sync repositories for installation "
-                    f"{github_installation_id}: {e}"
+                    f"[Webhook {delivery_id}] Failed to persist installation {github_installation_id}: {e}"
                 )
-        except Exception as e:
-            logger.error(
-                f"[Webhook {delivery_id}] Failed to persist installation {github_installation_id}: {e}"
-            )
-            raise HTTPException(500, f"Failed to persist installation: {str(e)}")
+                raise HTTPException(500, f"Failed to persist installation: {str(e)}")
 
     elif action == "deleted":
-        try:
-            inst = installation_service.get_by_github_id(db, github_installation_id)
-            if inst:
-                installation_service.delete_installation(
-                    db, user_id=inst.user_id, github_installation_id=github_installation_id
+        with SessionLocal() as db:
+            try:
+                inst = installation_service.get_by_github_id(db, github_installation_id)
+                if inst:
+                    installation_service.delete_installation(
+                        db, user_id=inst.user_id, github_installation_id=github_installation_id
+                    )
+                    logger.info(f"[Webhook {delivery_id}] Installation deleted: {github_installation_id}")
+                else:
+                    logger.warning(
+                        f"[Webhook {delivery_id}] Installation {github_installation_id} not found in DB"
+                    )
+            except Exception as e:
+                db.rollback()
+                logger.error(
+                    f"[Webhook {delivery_id}] Failed to delete installation {github_installation_id}: {e}"
                 )
-                logger.info(f"[Webhook {delivery_id}] Installation deleted: {github_installation_id}")
-            else:
-                logger.warning(
-                    f"[Webhook {delivery_id}] Installation {github_installation_id} not found in DB"
-                )
-        except Exception as e:
-            logger.error(
-                f"[Webhook {delivery_id}] Failed to delete installation {github_installation_id}: {e}"
-            )
-            raise HTTPException(500, f"Failed to delete installation: {str(e)}")
+                raise HTTPException(500, f"Failed to delete installation: {str(e)}")
 
     return {"acknowledged": True}
 
 
-async def handle_pull_request_event(db: Session, delivery_id: str, data: dict, action: str):
+async def handle_pull_request_event(delivery_id: str, data: dict, action: str):
     """
     Handle GitHub pull_request webhook events.
     
     Architectural flow:
-    1. Extract GitHub repository ID (immutable, rename-safe identifier)
-    2. Look up Repository by github_id
-    3. Resolve installation_id from repository.installation_id
-    4. Upsert PR and run audit pipeline
+    1. Extract installation.id from payload directly
+    2. Extract GitHub repository ID
+    3. Look up Repository and upsert PullRequest
+    4. Create ReviewJob using (installation_id, pr_id, head_sha)
+    5. Return 202 Accepted
     """
     if action not in ("opened", "reopened", "synchronize"):
         logger.info(f"[Webhook {delivery_id}] Ignoring pull_request action: {action}")
         return {"ignored": True}
+
+    # Extract installation_id explicitly
+    installation_id = data.get("installation", {}).get("id")
+    if not installation_id:
+        logger.error(f"[Webhook {delivery_id}] Missing installation.id in PR event")
+        raise HTTPException(400, "Missing installation ID in payload")
 
     # Extract core identifiers from payload
     repository_data = data.get("repository", {})
     github_repo_id = repository_data.get("id")
     repo_full_name = repository_data.get("full_name")
 
-    if not github_repo_id:
-        logger.error(f"[Webhook {delivery_id}] Missing GitHub repository ID")
-        raise HTTPException(400, "Missing repository ID")
-
-    if not repo_full_name:
-        logger.error(f"[Webhook {delivery_id}] Missing repository full_name")
-        raise HTTPException(400, "Missing repository full_name")
+    if not github_repo_id or not repo_full_name:
+        logger.error(f"[Webhook {delivery_id}] Missing GitHub repository information")
+        raise HTTPException(400, "Missing repository information")
 
     pr_data = data.get("pull_request", {})
     pr_number = pr_data.get("number")
-
-    if not pr_number:
-        logger.error(f"[Webhook {delivery_id}] Missing PR number")
-        raise HTTPException(400, "Missing PR number")
-
-    logger.info(
-        f"[Webhook {delivery_id}] Pull request event: {repo_full_name}#{pr_number}, "
-        f"action={action}, github_repo_id={github_repo_id}"
-    )
-
-    # CRITICAL: Look up the repository to get its installation_id
-    # This is the architectural anchor: repositories must exist in our DB before we audit them
-    repo = db.query(models.Repository).filter(
-        models.Repository.github_id == github_repo_id
-    ).first()
-
-    if not repo:
-        logger.warning(
-            f"[Webhook {delivery_id}] Repository not found in database: "
-            f"github_repo_id={github_repo_id}, full_name={repo_full_name}. "
-            f"The repository must be synced through a GitHub App installation before PRs can be audited."
-        )
-        # Return 202 Accepted to avoid GitHub retries, but don't audit
-        # The user should install the app or sync the repository
-        return JSONResponse(
-            {
-                "status": "ignored",
-                "reason": "repository_not_registered",
-                "message": f"Repository {repo_full_name} is not registered with PRAuditor. "
-                "Please ensure the GitHub App is installed on this repository."
-            },
-            status_code=202
-        )
-
-    installation_id = repo.installation_id
-    if not installation_id:
-        logger.error(
-            f"[Webhook {delivery_id}] Repository {repo_full_name} exists but has no installation_id. "
-            f"This is a database consistency error."
-        )
-        raise HTTPException(
-            500,
-            "Repository exists but installation_id is missing (database consistency error)"
-        )
-
-    logger.info(
-        f"[Webhook {delivery_id}] Resolved installation_id={installation_id} for repository "
-        f"{repo_full_name} (github_repo_id={github_repo_id})"
-    )
-
-    # Update repository metadata if needed
-    repo.full_name = repo_full_name
-    if repo.github_id is None:
-        repo.github_id = github_repo_id
-    repo.active = True  # Ensure it's marked active
-    db.commit()
-
-    # Upsert pull request
-    pr = db.query(models.PullRequest).filter(
-        models.PullRequest.repo_id == repo.id,
-        models.PullRequest.pr_number == pr_number,
-    ).first()
-
     pr_title = pr_data.get("title")
     pr_state = pr_data.get("state")
     pr_head_sha = pr_data.get("head", {}).get("sha")
 
-    if not pr:
-        logger.info(f"[Webhook {delivery_id}] Creating PR record: {repo_full_name}#{pr_number}")
-        pr = models.PullRequest(
-            repo_id=repo.id,
-            pr_number=pr_number,
-            title=pr_title,
-            state=pr_state,
-            head_sha=pr_head_sha,
-        )
-        db.add(pr)
-    else:
-        logger.debug(f"[Webhook {delivery_id}] Updating PR record: {repo_full_name}#{pr_number}")
-        pr.title = pr_title
-        pr.state = pr_state
-        pr.head_sha = pr_head_sha
+    if not pr_number or not pr_head_sha:
+        logger.error(f"[Webhook {delivery_id}] Missing PR number or head SHA")
+        raise HTTPException(400, "Missing PR details")
 
-    db.commit()
-    db.refresh(pr)
-
-    # Run the audit pipeline
     try:
+        with SessionLocal() as db:
+            repo = db.query(models.Repository).filter(
+                models.Repository.github_id == github_repo_id
+            ).first()
+
+            if not repo:
+                logger.warning(
+                    f"[Webhook {delivery_id}] Repository not found: github_repo_id={github_repo_id}, "
+                    f"full_name={repo_full_name}. Repository must be synced first."
+                )
+                db.rollback()
+                return JSONResponse(
+                    {
+                        "status": "ignored",
+                        "reason": "repository_not_registered",
+                        "message": f"Repository {repo_full_name} is not registered."
+                    },
+                    status_code=202
+                )
+
+            # Update repository metadata if needed
+            repo.full_name = repo_full_name
+            if repo.github_id is None:
+                repo.github_id = github_repo_id
+            repo.active = True  # Ensure it's marked active
+
+            # Upsert pull request
+            pr = db.query(models.PullRequest).filter(
+                models.PullRequest.repo_id == repo.id,
+                models.PullRequest.pr_number == pr_number,
+            ).first()
+
+            if not pr:
+                pr = models.PullRequest(
+                    repo_id=repo.id,
+                    pr_number=pr_number,
+                    title=pr_title,
+                    state=pr_state,
+                    head_sha=pr_head_sha,
+                )
+                db.add(pr)
+            else:
+                pr.title = pr_title
+                pr.state = pr_state
+                pr.head_sha = pr_head_sha
+
+            db.flush() # Flush to get pr.id but do not commit yet
+            
+            pr_id = pr.id
+            repo_id = repo.id
+
+            # Create the job within the same transaction.
+            job = job_service.create_review_job(pr_id, installation_id, pr_head_sha, db=db)
+            db.commit() # commit the full transaction (Repo + PR + Job)
+        
+        if not job:
+            logger.error(f"[Webhook {delivery_id}] Failed to create or retrieve ReviewJob")
+            raise HTTPException(500, "Failed to create review job")
+            
+        # Logging
+        # Determine if it's a new or duplicate by checking the status
+        # Since create_review_job handles ON CONFLICT, if it returns an existing job we just use it
+        # Unfortunately, create_review_job does not currently return a flag "created: bool".
+        # But we can assume if it exists, we successfully enqueued or it's already there.
+        
         logger.info(
-            f"[Webhook {delivery_id}] Starting audit pipeline: {repo_full_name}#{pr_number} "
-            f"(repo_id={repo.id}, pr_id={pr.id}, installation_id={installation_id})"
+            f"[Webhook {delivery_id}] PR event processed: event=pull_request action={action} "
+            f"repo={repo_full_name} pr={pr_number} installation={installation_id} "
+            f"head_sha={pr_head_sha} job_id={job['id']} status={job['status']}"
         )
-        issues = run_and_store_review(db, repo, pr, installation_id)
-        logger.info(
-            f"[Webhook {delivery_id}] Audit completed: {repo_full_name}#{pr_number} "
-            f"found {len(issues)} issues"
+        
+        # We always return 202 whether it's duplicate or not
+        return JSONResponse(
+            {
+                "ok": True,
+                "queued": True,
+                "job_id": job["id"]
+            },
+            status_code=202
         )
-        return JSONResponse({"reviewed": True, "issues_found": len(issues)})
-    except ValueError as e:
-        logger.error(
-            f"[Webhook {delivery_id}] Audit pipeline failed (ValueError): {e}",
-            exc_info=True
-        )
-        raise HTTPException(500, f"Audit pipeline failed: {str(e)}")
+        
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(
-            f"[Webhook {delivery_id}] Audit pipeline failed (Exception): {e}",
+            f"[Webhook {delivery_id}] Database transaction failed: {e}",
             exc_info=True
         )
-        raise HTTPException(500, f"Audit pipeline failed: {str(e)}")
+        raise HTTPException(500, "Internal server error during database operation")
