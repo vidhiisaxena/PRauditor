@@ -82,6 +82,7 @@ def process_job(job: dict):
             
             repo_full_name = repo.full_name
             pr_number = pr.pr_number
+            pr_title = pr.title or ""
 
         # Execute AI Review (NO DB SESSION)
         # Passing job_head_sha ensures the post-review SHA check is performed
@@ -90,7 +91,8 @@ def process_job(job: dict):
             pr_number=pr_number,
             pr_id=pr_id,
             installation_id=installation_id,
-            job_head_sha=job_head_sha
+            job_head_sha=job_head_sha,
+            pr_title=pr_title,
         )
         
         # Mark as completed in a short DB transaction

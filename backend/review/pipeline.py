@@ -1,36 +1,52 @@
+import logging
 from typing import List
 
 from backend.review.types import Issue
 from backend.review.diff_parser import parse_unified_diff
-from backend.review.agents import (
-    logic_agent,
-    readability_agent,
-    performance_agent,
-    security_agent,
-)
+from backend.review.agents import unified_review_agent
+
+logger = logging.getLogger(__name__)
 
 
-def run_review(diff_text: str) -> List[Issue]:
+def run_review(
+    diff_text: str,
+    pr_title: str = "",
+    pr_description: str = "",
+    enclosing_context: str = "",
+) -> List[Issue]:
     """
     Main entry point for the review pipeline.
+
+    Parses the diff, runs a single unified LLM review call with chain-of-thought
+    reasoning, and returns deduplicated, confidence-filtered issues.
     """
     chunks = parse_unified_diff(diff_text)
 
     if not chunks:
+        logger.info("[Pipeline] No diff chunks to review")
         return []
 
-    issues: List[Issue] = []
-    issues.extend(logic_agent(chunks))
-    issues.extend(readability_agent(chunks))
-    issues.extend(performance_agent(chunks))
-    issues.extend(security_agent(chunks))
+    logger.info(f"[Pipeline] Reviewing {len(chunks)} file(s)...")
 
-    return _merge_similar(issues)
+    issues = unified_review_agent(
+        chunks,
+        pr_title=pr_title,
+        pr_description=pr_description,
+        enclosing_context=enclosing_context,
+    )
+
+    deduplicated = _deduplicate(issues)
+    logger.info(
+        f"[Pipeline] {len(issues)} raw findings → {len(deduplicated)} after dedup"
+    )
+
+    return deduplicated
 
 
-def _merge_similar(issues: List[Issue]) -> List[Issue]:
+def _deduplicate(issues: List[Issue]) -> List[Issue]:
     """
-    Simple dedupe by (file_path, line, kind, message prefix).
+    Deduplicate by (file_path, line, kind, message_prefix).
+    When duplicates exist, keep the higher severity.
     """
     seen: dict[tuple, Issue] = {}
     for it in issues:
@@ -41,7 +57,6 @@ def _merge_similar(issues: List[Issue]) -> List[Issue]:
             (it.message[:80] if it.message else ""),
         )
         if key in seen:
-            # choose higher severity if they differ
             existing = seen[key]
             existing.severity = _max_severity(existing.severity, it.severity)
         else:

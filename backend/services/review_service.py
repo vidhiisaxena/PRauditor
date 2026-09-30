@@ -14,6 +14,7 @@ def run_and_store_review(
     pr_id: int,
     installation_id: int,
     job_head_sha: str = None,
+    pr_title: str = "",
 ) -> List[Issue]:
     """
     Fetch the PR diff, run the review pipeline, replace the PR's stored issues,
@@ -26,7 +27,7 @@ def run_and_store_review(
     # NO DB SESSION
     diff = fetch_pr_diff(repo_full_name, pr_number, installation_id)
 
-    issues = run_review(diff)
+    issues = run_review(diff, pr_title=pr_title)
 
     # DB SESSION
     with SessionLocal() as db:
