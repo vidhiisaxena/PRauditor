@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from backend.review.types import DiffChunk, Issue
 from backend.integrations.llm.client import chat
@@ -86,14 +86,52 @@ If there are no issues in a category, return an empty array for that category.\
 """
 
 
+def _format_static_hints(static_findings: List[Any]) -> str:
+    """Format high-confidence static findings into deterministic context for the LLM."""
+    if not static_findings:
+        return ""
+    lines = [
+        "## Deterministic Analysis Results",
+        "",
+        "The following issues were detected by static analysis with high confidence.",
+        "You do not need to re-report these unless you disagree with the assessment.",
+        "Focus your analysis on issues that require semantic understanding.",
+        "",
+    ]
+    for sf in static_findings:
+        cat = getattr(sf, "category", "general").upper()
+        title = getattr(sf, "title", "Issue")
+        fpath = getattr(sf, "file_path", "")
+        line = getattr(sf, "line", "")
+        conf = getattr(sf, "confidence", 0.95)
+        lines.append(f"- [{cat}] {title} in {fpath}:{line} (confidence: {conf})")
+
+    lines.extend([
+        "",
+        "## Your Task",
+        "",
+        "Analyze the remaining code for issues that static analysis cannot detect:",
+        "- incorrect logic / wrong conditions / missing edge cases",
+        "- semantic bugs (code doesn't match PR intent)",
+        "- subtle performance issues requiring context understanding",
+        "- architectural concerns",
+        "- redundant or unnecessarily complex code",
+    ])
+    return "\n".join(lines)
+
+
 def _build_context_section(
     pr_title: str = "",
     pr_description: str = "",
     enclosing_context: str = "",
+    static_hints: str = "",
+    pr_summary_text: str = "",
 ) -> str:
     """Build the optional context block for the prompt."""
     parts = []
 
+    if pr_summary_text:
+        parts.append(f"**PR Overview:** {pr_summary_text}")
     if pr_title:
         parts.append(f"**PR Title:** {pr_title}")
     if pr_description:
@@ -104,6 +142,8 @@ def _build_context_section(
         parts.append(f"**PR Description:** {desc}")
     if enclosing_context:
         parts.append(f"## Enclosing Context\n\n{enclosing_context}")
+    if static_hints:
+        parts.append(static_hints)
 
     if parts:
         return "## PR Context\n\n" + "\n\n".join(parts)
@@ -217,6 +257,8 @@ def unified_review_agent(
     pr_title: str = "",
     pr_description: str = "",
     enclosing_context: str = "",
+    static_findings: Optional[List[Any]] = None,
+    pr_summary: Optional[Any] = None,
 ) -> List[Issue]:
     """
     Single-call unified code review agent.
@@ -229,7 +271,16 @@ def unified_review_agent(
     if not diff_text.strip():
         return []
 
-    context_section = _build_context_section(pr_title, pr_description, enclosing_context)
+    static_hints = _format_static_hints(static_findings or [])
+    summary_text = getattr(pr_summary, "description", "") if pr_summary else ""
+
+    context_section = _build_context_section(
+        pr_title=pr_title,
+        pr_description=pr_description,
+        enclosing_context=enclosing_context,
+        static_hints=static_hints,
+        pr_summary_text=summary_text,
+    )
     user_prompt = USER_PROMPT_TEMPLATE.format(
         context_section=context_section,
         diff_text=diff_text,
